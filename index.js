@@ -104,9 +104,7 @@ app.get('/myFoodRequests', async (req, res) => {
     if (!email) return res.status(400).send({ message: "Email required" });
 
     
-    const userFoods = await foodCollection.find({ donorEmail: email }).toArray();
-    const userFoodIds = userFoods.map(food => food._id.toString());
-
+   
 
     const requests = await foodRequestsCollection
       .find({ foodId: { $in: userFoodIds } })
