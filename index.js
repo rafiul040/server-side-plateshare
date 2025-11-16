@@ -98,6 +98,27 @@ app.get('/food-requests/:foodId', async (req, res) => {
   }
 });
 
+app.get('/myFoodRequests', async (req, res) => {
+  try {
+    const email = req.query.email;
+    if (!email) return res.status(400).send({ message: "Email required" });
+
+    
+    const userFoods = await foodCollection.find({ donorEmail: email }).toArray();
+    const userFoodIds = userFoods.map(food => food._id.toString());
+
+
+    const requests = await foodRequestsCollection
+      .find({ foodId: { $in: userFoodIds } })
+      .toArray();
+
+    res.send(requests);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: "Failed to fetch user's food requests" });
+  }
+});
+
 
 
 app.put('/food-requests/:id', async (req, res) => {
