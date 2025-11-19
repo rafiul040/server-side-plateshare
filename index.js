@@ -1,7 +1,7 @@
-const express = require('express');
-const cors = require('cors');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-require('dotenv').config();
+const express = require("express");
+const cors = require("cors");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+require("dotenv").config();
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -9,7 +9,10 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-const uri = process.env.MONGODB_URI || "mongodb+srv://plateshareUser:G92YyR6tD1GVKdzR@cluster0.3o3pwj7.mongodb.net/?appName=Cluster0";
+// MongoDB Connect
+const uri =
+  process.env.MONGODB_URI ||
+  "mongodb+srv://plateshareUser:G92YyR6tD1GVKdzR@cluster0.3o3pwj7.mongodb.net/?appName=Cluster0";
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -27,76 +30,67 @@ async function run() {
 
     console.log("MongoDB Connected ✅");
 
-    
-    app.post('/add-food', async (req, res) => {
+    // Add Food
+    app.post("/add-food", async (req, res) => {
       const food = req.body;
       food.food_status = "Available";
       const result = await foodCollection.insertOne(food);
       res.send(result);
     });
 
-    
-    app.get('/foods', async (req, res) => {
-      const foods = await foodCollection.find().toArray();
+    // GET All foods (with filter for status)
+    app.get("/foods", async (req, res) => {
+      const status = req.query.status;
+
+      let query = {};
+      if (status) {
+        query.food_status = status;
+      }
+
+      const foods = await foodCollection.find(query).toArray();
       res.send(foods);
     });
 
-    
-    app.get('/foods/:id', async (req, res) => {
+    // GET Single Food by ID
+    app.get("/foods/:id", async (req, res) => {
       const id = req.params.id;
-      const food = await foodCollection.findOne({ _id: new ObjectId(id) });
+
+      const food = await foodCollection.findOne({
+        _id: new ObjectId(id),
+      });
+
       res.send(food);
     });
 
-  
-    app.put('/foods/:id', async (req, res) => {
+    // Update Food
+    app.put("/foods/:id", async (req, res) => {
       const id = req.params.id;
       const updatedData = req.body;
+
       const result = await foodCollection.updateOne(
         { _id: new ObjectId(id) },
         { $set: updatedData }
       );
+
       res.send(result);
     });
 
-  
-    app.delete('/foods/:id', async (req, res) => {
+    // DELETE Food
+    app.delete("/foods/:id", async (req, res) => {
       const id = req.params.id;
-      const result = await foodCollection.deleteOne({ _id: new ObjectId(id) });
+      const result = await foodCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
       res.send(result);
     });
 
-    app.post('/food-requests', async (req, res) => {
+    // Submit Food Request
+    app.post("/food-requests", async (req, res) => {
       try {
         const request = req.body;
         request.status = "pending";
 
-    
         const result = await foodRequestsCollection.insertOne(request);
-
-      
-        const foodId = request.foodId;
-        const food = await foodCollection.findOne({ _id: new ObjectId(foodId) });
-
-        if (food) {
-          const [count, unit] = food.food_quantity.split(" ");
-          const newCount = Math.max(0, parseInt(count) - 1);
-
-          let newStatus = food.food_status;
-          if (newCount === 0) {
-            newStatus = "Out of Stock";
-          }
-
-          await foodCollection.updateOne(
-            { _id: new ObjectId(foodId) },
-            {
-              $set: {
-                food_quantity: `${newCount} ${unit}`,
-                food_status: newStatus
-              }
-            }
-          );
-        }
 
         res.send(result);
       } catch (error) {
@@ -105,102 +99,46 @@ async function run() {
       }
     });
 
-    
-    app.get('/food-requests/:foodId', async (req, res) => {
-      try {
-        const foodId = req.params.foodId;
-        const requests = await foodRequestsCollection.find({ foodId }).toArray();
-        res.send(requests);
-      } catch (error) {
-        console.error(error);
-        res.status(500).send({ message: "Failed to fetch requests" });
-      }
+    // Get Requests by foodId
+    app.get("/food-requests/:foodId", async (req, res) => {
+      const foodId = req.params.foodId;
+      const requests = await foodRequestsCollection
+        .find({ foodId })
+        .toArray();
+
+      res.send(requests);
     });
 
-  
-    app.get('/myFoodRequests', async (req, res) => {
-      try {
-        const email = req.query.email;
-        if (!email) return res.status(400).send({ message: "Email required" });
+    // My Food Requests (donator)
+    app.get("/myFoodRequests", async (req, res) => {
+      const email = req.query.email;
 
-        const userFoods = await foodCollection.find({ donator_email: email }).toArray();
-        const userFoodIds = userFoods.map(food => food._id.toString());
+      if (!email)
+        return res.status(400).send({ message: "Email required" });
 
-        const requests = await foodRequestsCollection
-          .find({ foodId: { $in: userFoodIds } })
-          .toArray();
+      const foods = await foodCollection
+        .find({ donator_email: email })
+        .toArray();
 
-        res.send(requests);
-      } catch (error) {
-        console.error(error);
-        res.status(500).send({ message: "Failed to fetch user's food requests" });
-      }
+      const ids = foods.map((f) => f._id.toString());
+
+      const requests = await foodRequestsCollection
+        .find({ foodId: { $in: ids } })
+        .toArray();
+
+      res.send(requests);
     });
-
-    
-
-app.put('/food-requests/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { status } = req.body;
-
-    const result = await foodRequestsCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { status } }
-    );
-
-
-    if (status === "accepted") {
-      const request = await foodRequestsCollection.findOne({ _id: new ObjectId(id) });
-
-      await foodCollection.updateOne(
-        { _id: new ObjectId(request.foodId) },
-        { $inc: { food_quantity: -1 } }
-      );
-
-      const updatedFood = await foodCollection.findOne({ _id: new ObjectId(request.foodId) });
-
-      if (updatedFood.food_quantity <= 0) {
-        await foodCollection.updateOne(
-          { _id: new ObjectId(request.foodId) },
-          { $set: { food_status: "donated" } }
-        );
-      }
-    }
-
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "Failed to update request status" });
-  }
-});
-
-
-
-
-
-
-
-
-
-
-
-
 
     console.log("APIs Ready ✅");
-
   } finally {}
 }
 
 run().catch(console.dir);
 
-app.get('/', (req, res) => {
-  res.send('🍱 PlateShare CRUD Server is Running');
+app.get("/", (req, res) => {
+  res.send("🍱 PlateShare CRUD API Running");
 });
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
-
-
-
